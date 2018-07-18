@@ -1,0 +1,13 @@
+{
+  "name": "notify-bot",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node ./index.js"
+  },
+  "dependencies": {
+    "dotenv": "~6.0.0",
+    "request": "~2.87.0",
+    "request-promise": "~4.2.2",
+    "twitch-js": "~1.2.12"
+  }
+}
