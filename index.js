@@ -4,6 +4,7 @@ const TwitchJS = require('twitch-js')
 const { EVENT_NAME, IFTTT_KEY, TWITCH_CODE, TWITCH_NAME } = process.env
 
 let Bot
+const ignoredUsers = [TWITCH_NAME, 'nightbot']
 const monitoredChannels = [] // array of string channel names (each needs to start with a # eg #ninja)
 const monitoredTerms = [TWITCH_NAME] // or any additional terms you care about
 const opts = {
@@ -11,16 +12,18 @@ const opts = {
     username: TWITCH_NAME,
     password: TWITCH_CODE
   },
-  channels: [ ], // array of string channel names to join on connect (each WITHOUT a # eg ninja)
+  channels: [ ], // array of string channel names to join on connect (each without a # eg ninja)
   reconnect: true,
   maxReconnectAttempts: 5
 }
 
 function onChatHandler (channel, userstate = {}, message, self) {
-  if (userstate.username === TWITCH_NAME) return
+  const user = userstate.username
+
+  if (ignoredUsers.includes(user)) return
 
   if (isInMonitoredChannel(channel) || includesMonitoredTerm(message)) {
-    const totalMessage = `${channel}:\t${userstate.username}: ${message}\n`
+    const totalMessage = `${channel}:\t${user}: ${message}\n`
     return sendMessage(totalMessage)
   }
 }
@@ -65,6 +68,6 @@ function isInMonitoredChannel (channel) {
 
 function includesMonitoredTerm (message) {
   return monitoredTerms.some(function (term) {
-    return message.includes(term)
+    return message.match(term)
   })
 }
