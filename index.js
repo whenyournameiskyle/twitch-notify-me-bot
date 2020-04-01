@@ -1,53 +1,52 @@
-require('dotenv').config()
+const { config } = require('dotenv')
 const request = require('request-promise')
-const TwitchJS = require('twitch-js')
+const TwitchJs = require('twitch-js').default
+
+config()
+
 const { EVENT_NAME, IFTTT_KEY, TWITCH_CODE, TWITCH_NAME } = process.env
+const channelsToJoin = [TWITCH_NAME] // channels you want to join to monitor
+const ignoredUsers = { 'moobot': true, 'nightbot': true } // users whose  messages you don't want notified of
+const monitoredChannels = { [TWITCH_NAME]: true } // channels you want to be notifed of ALL messages by non-ignoredUsers
+const monitoredTerms = [TWITCH_NAME] // words, regex, etc you want to be notified of in channels you are joined
 
-let Bot
-const ignoredUsers = [TWITCH_NAME, 'nightbot']
-const monitoredChannels = [] // array of string channel names (each needs to start with a # eg #ninja)
-const monitoredTerms = [TWITCH_NAME] // or any additional terms you care about
-const opts = {
-  identity: {
-    username: TWITCH_NAME,
-    password: TWITCH_CODE
-  },
-  channels: [ ], // array of string channel names to join on connect (each without a # eg ninja)
-  reconnect: true,
-  maxReconnectAttempts: 5
-}
+const { api, chat } = new TwitchJs({
+  username: TWITCH_NAME,
+  token: TWITCH_CODE
+})
 
-function onChatHandler (channel, userstate = {}, message, self) {
-  const user = userstate.username
+// silence all built in console.info
+chat.removeAllListeners()
 
-  if (ignoredUsers.includes(user)) return
+chat.connect().then(() => {
+  channelsToJoin.forEach((channel, index) => setTimeout(() => channel && chat.join(channel), 2000 * index))
+})
+
+chat.on(TwitchJs.Chat.Events.PARSE_ERROR_ENCOUNTERED, () => {})
+
+chat.on(TwitchJs.Chat.Events.PRIVATE_MESSAGE, ({ channel, message, username }) => {
+  if (ignoredUsers[username]) return
 
   if (isInMonitoredChannel(channel) || includesMonitoredTerm(message)) {
-    const totalMessage = `${channel}:\t${user}: ${message}\n`
-    return sendMessage(totalMessage)
+    return sendIFTTTNotification(`${channel}:\t${user}: ${message}\n`)
   }
-}
+})
 
-function runBot () {
-  Bot = new TwitchJS.client(opts)
-
-  Bot.on('connected', onConnectedHandler)
-  Bot.on('disconnected', onDisconnectedHandler)
-  Bot.on('chat', onChatHandler)
-
-  Bot.connect()
-}
-
-function onConnectedHandler (addr, port) {
-  console.info(`Connected to Twitch ${addr}:${port}`)
-}
-
-function onDisconnectedHandler (reason) {
-  console.info(`Disconnected. Reason: ${reason}`)
+chat.on(TwitchJs.Chat.Events.DISCONNECTED, () => {
   process.exit(1)
+})
+
+function isInMonitoredChannel (channel) {
+  return monitoredChannels[channel] || monitoredChannels[`#${channel}`]
 }
 
-function sendMessage (message) {
+function includesMonitoredTerm (message) {
+  return monitoredTerms.some(function (term) {
+    return message.match(term)
+  })
+}
+
+function sendIFTTTNotification (message) {
   try {
     const url = `https://maker.ifttt.com/trigger/${EVENT_NAME}/with/key/${IFTTT_KEY}`
     return request(url, {
@@ -58,16 +57,4 @@ function sendMessage (message) {
   } catch (e) {
     console.error(e)
   }
-}
-
-module.exports = runBot()
-
-function isInMonitoredChannel (channel) {
-  return monitoredChannels.includes(channel)
-}
-
-function includesMonitoredTerm (message) {
-  return monitoredTerms.some(function (term) {
-    return message.match(term)
-  })
 }
