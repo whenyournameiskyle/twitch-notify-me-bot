@@ -41,9 +41,7 @@ function isInMonitoredChannel (channel) {
 }
 
 function includesMonitoredTerm (message) {
-  return monitoredTerms.some(function (term) {
-    return message.match(term)
-  })
+  return monitoredTerms.some((term) => message.match(term))
 }
 
 function sendIFTTTNotification (message) {
