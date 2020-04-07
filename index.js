@@ -11,11 +11,12 @@ const monitoredChannels = { [TWITCH_NAME]: true } // channels you want to be not
 const monitoredTerms = [TWITCH_NAME] // words, regex, etc you want to be notified of in channels you are joined
 
 const { api, chat } = new TwitchJs({
+  log: { level: 'silent' },
   username: TWITCH_NAME,
   token: TWITCH_CODE
 })
 
-// silence all built in console.info
+// remove other listeners
 chat.removeAllListeners()
 
 chat.connect().then(() => {
