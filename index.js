@@ -1,51 +1,43 @@
+'use strict'
+
 const { config } = require('dotenv')
 const request = require('request-promise')
 const TwitchJs = require('twitch-js').default
+const { Chat: { Events: { DISCONNECTED, PARSE_ERROR_ENCOUNTERED, PRIVATE_MESSAGE } } } = TwitchJs
 
 config()
 
-const { EVENT_NAME, IFTTT_KEY, TWITCH_CODE, TWITCH_NAME } = process.env
-const channelsToJoin = [TWITCH_NAME] // channels you want to join to monitor
-const ignoredUsers = { 'moobot': true, 'nightbot': true } // users whose  messages you don't want notified of
-const monitoredChannels = { [TWITCH_NAME]: true } // channels you want to be notifed of ALL messages by non-ignoredUsers
-const monitoredTerms = [TWITCH_NAME] // words, regex, etc you want to be notified of in channels you are joined
-
-const { api, chat } = new TwitchJs({
-  log: { level: 'silent' },
-  username: TWITCH_NAME,
-  token: TWITCH_CODE
-})
+const { EVENT_NAME, IFTTT_KEY } = process.env
+const myUsername = '' //assuming you want to join your own channel to monitor, otherwise leave blank
+const channelsToJoin = [ myUsername ] // array of any channels you want to monitor
+const ignoredUsers = { // users whose messages you don't want notified of
+  moobot: true,
+  nightbot: true,
+  streamelements: true
+}
+const monitoredChannels = { // channels you want to monitor ALL messages from ALL users
+  [myUsername]: true
+}
+const monitoredTerms = [ myUsername ] // array of words, regex, etc you want to be notified of in joined channels
+const { chat } = new TwitchJs({ log: { level: 'silent' } })
 
 // remove other listeners
 chat.removeAllListeners()
-
 chat.connect().then(() => {
+  chat.on(PARSE_ERROR_ENCOUNTERED, () => {})
+  chat.on(PRIVATE_MESSAGE, ({ channel, message, username }) => {
+    if (ignoredUsers[username]) return
+    if (isInMonitoredChannel(channel) || includesMonitoredTerm(message)) {
+      return sendIFTTTNotification(`${channel}:\t${username}: ${message}\n`)
+    }
+  })
+  chat.on(DISCONNECTED, () => process.exit(0))
   channelsToJoin.forEach((channel, index) => setTimeout(() => channel && chat.join(channel), 2000 * index))
-})
+}).catch((e) => console.error('Error connecting to Twitch Chat', e))
 
-chat.on(TwitchJs.Chat.Events.PARSE_ERROR_ENCOUNTERED, () => {})
-
-chat.on(TwitchJs.Chat.Events.PRIVATE_MESSAGE, ({ channel, message, username }) => {
-  if (ignoredUsers[username]) return
-
-  if (isInMonitoredChannel(channel) || includesMonitoredTerm(message)) {
-    return sendIFTTTNotification(`${channel}:\t${user}: ${message}\n`)
-  }
-})
-
-chat.on(TwitchJs.Chat.Events.DISCONNECTED, () => {
-  process.exit(1)
-})
-
-function isInMonitoredChannel (channel) {
-  return monitoredChannels[channel] || monitoredChannels[`#${channel}`]
-}
-
-function includesMonitoredTerm (message) {
-  return monitoredTerms.some((term) => message.match(term))
-}
-
-function sendIFTTTNotification (message) {
+const includesMonitoredTerm = (message) => monitoredTerms.some((term) => message.match(term))
+const isInMonitoredChannel = (channel) => monitoredChannels[channel] || monitoredChannels[stripHash(channel)]
+const sendIFTTTNotification = (message) => {
   try {
     const url = `https://maker.ifttt.com/trigger/${EVENT_NAME}/with/key/${IFTTT_KEY}`
     return request(url, {
@@ -57,3 +49,4 @@ function sendIFTTTNotification (message) {
     console.error(e)
   }
 }
+const stripHash = (channel) => channel && channel[0] === '#' ? channel.toLowerCase().replace('#', '') : channel.toLowerCase()
