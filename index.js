@@ -21,7 +21,10 @@ const monitoredChannels = { // channels you want to monitor ALL messages from AL
 const monitoredTerms = [ myUsername ] // array of words, regex, etc you want to be notified of in joined channels
 const ignoredTerms = [] // opposite of the above: array of words, regex, etc you want to *not* be notified of even in monitored channels
 
-const { chat } = new TwitchJs({ log: { level: 'silent' } })
+const { chat } = new TwitchJs({
+  log: { level: 'silent' },
+  token: '',
+})
 
 // remove other listeners
 chat.removeAllListeners()
