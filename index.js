@@ -57,11 +57,12 @@ chat.connect().then(() => {
     try {
       if (ignoredUsers.has(username)) return
       if (includesIgnoredTerm(message)) return
-      if (isInMonitoredChannel(channel) || includesMonitoredTerm(message)) {
+      let newMessage = message.replace(/\s+/g, ' ')
+      if (isInMonitoredChannel(channel) || includesMonitoredTerm(newMessage)) {
         if (!dryRun) {
-          return sendIFTTTNotification(`${stripHash(channel)}:\t${username}: ${message}\n`)
+          return sendIFTTTNotification(`${stripHash(channel)}:\t${username}: ${newMessage}\n`)
         } else {
-          console.log('would send notification', channel, username, message)
+          console.log('would send notification', channel, username, newMessage)
         }
       }
     } catch (e) {
