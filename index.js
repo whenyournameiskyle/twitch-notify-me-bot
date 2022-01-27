@@ -24,6 +24,7 @@ try {
 const channelsToJoin = userSettings.channelsToJoin || []
 const monitoredTerms = (userSettings.monitoredTerms || []).map(s => new RegExp(s, 'i'))
 const ignoredTerms = (userSettings.ignoredTerms || []).map(s => new RegExp(s, 'i'))
+const strippedTerms = (userSettings.strippedTerms || []).map(s => new RegExp(s, 'g'))
 const ignoredUsers = new Set(userSettings.ignoredUsers || [])
 const monitoredChannels = new Set((userSettings.monitoredChannels || []).map(stripHash))
 
@@ -65,7 +66,10 @@ chat.connect().then(() => {
   new Set([... channelsToJoin, ...monitoredChannels]).forEach((channel, index) => setTimeout(() => channel && chat.join(channel), 2000 * index))
 }).catch((e) => console.error('Error connecting to Twitch Chat', e))
 
-const includesMonitoredTerm = (message) => monitoredTerms.some((term) => message.match(term))
+const includesMonitoredTerm = (message) => {
+  strippedTerms.forEach(strip => message = message.replace(strip, ''))
+  return monitoredTerms.some((term) => message.match(term))
+}
 const isInMonitoredChannel = (channel) => monitoredChannels.has(stripHash(channel))
 const includesIgnoredTerm = (message) => ignoredTerms.some((term) => message.match(term))
 

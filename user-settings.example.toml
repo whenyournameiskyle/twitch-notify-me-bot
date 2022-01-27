@@ -20,3 +20,7 @@ monitoredTerms = []
 # regexps to match messages you want to *not* be notified of even in monitored
 # channels
 ignoredTerms = []
+
+# stripped terms are removed before checking for monitored terms
+# case-sensitive regexp
+strippedTerms = []
