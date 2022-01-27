@@ -48,8 +48,9 @@ const { chat } = new TwitchJs({
 
 // remove other listeners
 chat.removeAllListeners()
+chat.on(PARSE_ERROR_ENCOUNTERED, () => {})
+chat.on(DISCONNECTED, () => process.exit(1))
 chat.connect().then(() => {
-  chat.on(PARSE_ERROR_ENCOUNTERED, () => {})
   chat.on(PRIVATE_MESSAGE, ({ channel, message, username }) => {
     if (ignoredUsers.has(username)) return
     if (includesIgnoredTerm(message)) return
