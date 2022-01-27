@@ -2,7 +2,7 @@
 
 const fs = require('fs')
 const { config } = require('dotenv')
-const request = require('request-promise')
+const fetch = require('node-fetch')
 const TwitchJs = require('twitch-js').default
 const { Chat: { Events: { DISCONNECTED, PARSE_ERROR_ENCOUNTERED, PRIVATE_MESSAGE } } } = TwitchJs
 const toml = require('toml')
@@ -54,7 +54,7 @@ chat.connect().then(() => {
     if (includesIgnoredTerm(message)) return
     if (isInMonitoredChannel(channel) || includesMonitoredTerm(message)) {
       if (!dryRun) {
-        return sendIFTTTNotification(`${channel}:\t${username}: ${message}\n`)
+        return sendIFTTTNotification(`${stripHash(channel)}:\t${username}: ${message}\n`)
       }
       else {
         console.log("would send notification", channel, username, message)
@@ -69,15 +69,12 @@ const includesMonitoredTerm = (message) => monitoredTerms.some((term) => message
 const isInMonitoredChannel = (channel) => monitoredChannels.has(stripHash(channel))
 const includesIgnoredTerm = (message) => ignoredTerms.some((term) => message.match(term))
 
-const sendIFTTTNotification = (message) => {
+const sendIFTTTNotification = async (message) => {
   try {
-    const url = `https://maker.ifttt.com/trigger/${EVENT_NAME}/with/key/${IFTTT_KEY}`
-    return request(url, {
-      body: { value1: message },
-      json: true,
-      method: 'POST'
-    })
+    const url = `https://maker.ifttt.com/trigger/${EVENT_NAME}/with/key/${IFTTT_KEY}?value1=${message}`
+    console.log({url})
+    await fetch(url, { method: 'POST' })
   } catch (e) {
-    console.error(e)
+    console.error('IFTTT POST fetch failed', e.message)
   }
 }
