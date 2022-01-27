@@ -52,15 +52,19 @@ chat.on(PARSE_ERROR_ENCOUNTERED, () => {})
 chat.on(DISCONNECTED, () => process.exit(1))
 chat.connect().then(() => {
   chat.on(PRIVATE_MESSAGE, ({ channel, message, username }) => {
-    if (ignoredUsers.has(username)) return
-    if (includesIgnoredTerm(message)) return
-    if (isInMonitoredChannel(channel) || includesMonitoredTerm(message)) {
-      if (!dryRun) {
-        return sendIFTTTNotification(`${stripHash(channel)}:\t${username}: ${message}\n`)
+    try {
+      if (ignoredUsers.has(username)) return
+      if (includesIgnoredTerm(message)) return
+      if (isInMonitoredChannel(channel) || includesMonitoredTerm(message)) {
+        if (!dryRun) {
+          return sendIFTTTNotification(`${stripHash(channel)}:\t${username}: ${message}\n`)
+        }
+        else {
+          console.log("would send notification", channel, username, message)
+        }
       }
-      else {
-        console.log("would send notification", channel, username, message)
-      }
+    } catch (e) {
+      console.error('Error processing chat message', e)
     }
   })
   chat.on(DISCONNECTED, () => process.exit(0))
