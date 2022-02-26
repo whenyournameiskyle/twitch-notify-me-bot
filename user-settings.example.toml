@@ -1,0 +1,26 @@
+# assuming you want to join your own channel to monitor everything, otherwise leave blank
+myUserName = ""
+
+# channels you want to monitor ALL messages from ALL users
+monitoredChannels = []
+
+# any channels you want to monitor in addition
+channelsToJoin = []
+
+# users whose messages you don't want to be notified of
+ignoredUsers = [
+  "moobot",
+  "nightbot",
+  "streamelements",
+]
+
+# regexps to watch messages you want to be notified of in every joined channel
+monitoredTerms = []
+
+# regexps to match messages you want to *not* be notified of even in monitored
+# channels
+ignoredTerms = []
+
+# stripped terms are removed before checking for monitored terms
+# case-sensitive regexp
+strippedTerms = []

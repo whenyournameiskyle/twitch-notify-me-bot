@@ -1,60 +1,91 @@
 'use strict'
 
+const fs = require('fs')
+const path = require('path')
 const { config } = require('dotenv')
-const request = require('request-promise')
+const fetch = require('node-fetch')
 const TwitchJs = require('twitch-js').default
 const { Chat: { Events: { DISCONNECTED, PARSE_ERROR_ENCOUNTERED, PRIVATE_MESSAGE } } } = TwitchJs
+const toml = require('toml')
+
+const stripHash = (channel) => channel && channel[0] === '#' ? channel.toLowerCase().replace('#', '') : channel.toLowerCase()
 
 config()
-
 const { EVENT_NAME, IFTTT_KEY } = process.env
-const myUsername = '' //assuming you want to join your own channel to monitor, otherwise leave blank
-const channelsToJoin = [ myUsername ] // array of any channels you want to monitor
-const ignoredUsers = { // users whose messages you don't want notified of
-  moobot: true,
-  nightbot: true,
-  streamelements: true
+
+// load customized settings
+let userSettings
+try {
+  const userSettingsPath = path.join(__dirname, 'user-settings.toml')
+  userSettings = toml.parse(fs.readFileSync(userSettingsPath))
+} catch (e) {
+  console.error('Error loading user-settings.toml', e)
+  process.exit(1)
 }
-const monitoredChannels = { // channels you want to monitor ALL messages from ALL users
-  [myUsername]: true
+
+const channelsToJoin = userSettings.channelsToJoin || []
+const monitoredTerms = (userSettings.monitoredTerms || []).map(s => new RegExp(s, 'i'))
+const ignoredTerms = (userSettings.ignoredTerms || []).map(s => new RegExp(s, 'i'))
+const strippedTerms = (userSettings.strippedTerms || []).map(s => new RegExp(s, 'g'))
+const ignoredUsers = new Set(userSettings.ignoredUsers || [])
+const monitoredChannels = new Set((userSettings.monitoredChannels || []).map(stripHash))
+
+const dryRun = userSettings.dryRun || false
+
+const myUserName = userSettings.myUserName || ''
+if (myUserName !== '') {
+  // by default i'm interested in my own channel
+  monitoredChannels.add(myUserName)
+  // don't need to be notified that i'm talking
+  ignoredUsers.add(myUserName)
+  // do want to be notified when people are talking about me
+  // or i guess to me
+  monitoredTerms.push(new RegExp(myUserName, 'i'))
 }
-const monitoredTerms = [ myUsername ] // array of words, regex, etc you want to be notified of in joined channels
-const ignoredTerms = [] // opposite of the above: array of words, regex, etc you want to *not* be notified of even in monitored channels
 
 const { chat } = new TwitchJs({
   log: { level: 'silent' },
-  token: '',
+  token: ''
 })
 
 // remove other listeners
 chat.removeAllListeners()
+chat.on(PARSE_ERROR_ENCOUNTERED, () => {})
+chat.on(DISCONNECTED, () => process.exit(1))
 chat.connect().then(() => {
-  chat.on(PARSE_ERROR_ENCOUNTERED, () => {})
   chat.on(PRIVATE_MESSAGE, ({ channel, message, username }) => {
-    if (ignoredUsers[username]) return
-    if (includesIgnoredTerm(message)) return
-    if (isInMonitoredChannel(channel) || includesMonitoredTerm(message)) {
-      return sendIFTTTNotification(`${channel}:\t${username}: ${message}\n`)
+    try {
+      if (ignoredUsers.has(username)) return
+      if (includesIgnoredTerm(message)) return
+      let newMessage = message.replace(/\s+/g, ' ')
+      if (isInMonitoredChannel(channel) || includesMonitoredTerm(newMessage)) {
+        if (!dryRun) {
+          return sendIFTTTNotification(`${stripHash(channel)}:\t${username}: ${newMessage}\n`)
+        } else {
+          console.log('would send notification', channel, username, newMessage)
+        }
+      }
+    } catch (e) {
+      console.error('Error processing chat message', e)
     }
   })
   chat.on(DISCONNECTED, () => process.exit(0))
-  channelsToJoin.forEach((channel, index) => setTimeout(() => channel && chat.join(channel), 2000 * index))
+  new Set([...channelsToJoin, ...monitoredChannels]).forEach((channel, index) => setTimeout(() => channel && chat.join(channel), 2000 * index))
 }).catch((e) => console.error('Error connecting to Twitch Chat', e))
 
-const includesMonitoredTerm = (message) => monitoredTerms.some((term) => message.match(term))
-const isInMonitoredChannel = (channel) => monitoredChannels[channel] || monitoredChannels[stripHash(channel)]
+const includesMonitoredTerm = (message) => {
+  strippedTerms.forEach(strip => { message = message.replace(strip, '') })
+  return monitoredTerms.some((term) => message.match(term))
+}
+const isInMonitoredChannel = (channel) => monitoredChannels.has(stripHash(channel))
 const includesIgnoredTerm = (message) => ignoredTerms.some((term) => message.match(term))
 
-const sendIFTTTNotification = (message) => {
+const sendIFTTTNotification = async (message) => {
   try {
-    const url = `https://maker.ifttt.com/trigger/${EVENT_NAME}/with/key/${IFTTT_KEY}`
-    return request(url, {
-      body: { value1: message },
-      json: true,
-      method: 'POST'
-    })
+    const url = `https://maker.ifttt.com/trigger/${EVENT_NAME}/with/key/${IFTTT_KEY}?value1=${message}`
+    console.log({ url })
+    await fetch(url, { method: 'POST' })
   } catch (e) {
-    console.error(e)
+    console.error('IFTTT POST fetch failed', e.message)
   }
 }
-const stripHash = (channel) => channel && channel[0] === '#' ? channel.toLowerCase().replace('#', '') : channel.toLowerCase()
