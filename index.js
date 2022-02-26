@@ -19,7 +19,12 @@ const monitoredChannels = { // channels you want to monitor ALL messages from AL
   [myUsername]: true
 }
 const monitoredTerms = [ myUsername ] // array of words, regex, etc you want to be notified of in joined channels
-const { chat } = new TwitchJs({ log: { level: 'silent' } })
+const ignoredTerms = [] // opposite of the above: array of words, regex, etc you want to *not* be notified of even in monitored channels
+
+const { chat } = new TwitchJs({
+  log: { level: 'silent' },
+  token: '',
+})
 
 // remove other listeners
 chat.removeAllListeners()
@@ -27,6 +32,7 @@ chat.connect().then(() => {
   chat.on(PARSE_ERROR_ENCOUNTERED, () => {})
   chat.on(PRIVATE_MESSAGE, ({ channel, message, username }) => {
     if (ignoredUsers[username]) return
+    if (includesIgnoredTerm(message)) return
     if (isInMonitoredChannel(channel) || includesMonitoredTerm(message)) {
       return sendIFTTTNotification(`${channel}:\t${username}: ${message}\n`)
     }
@@ -37,6 +43,8 @@ chat.connect().then(() => {
 
 const includesMonitoredTerm = (message) => monitoredTerms.some((term) => message.match(term))
 const isInMonitoredChannel = (channel) => monitoredChannels[channel] || monitoredChannels[stripHash(channel)]
+const includesIgnoredTerm = (message) => ignoredTerms.some((term) => message.match(term))
+
 const sendIFTTTNotification = (message) => {
   try {
     const url = `https://maker.ifttt.com/trigger/${EVENT_NAME}/with/key/${IFTTT_KEY}`
